@@ -1,0 +1,78 @@
+import pymunk
+import pymunk.pygame_util
+import pygame
+import numpy as np
+from random import uniform
+
+# Constants
+WIDTH, HEIGHT = 2000, 2000  # Size of the square in microns (2mm)
+peak_diameter = 150  # Initial peak diameter in microns
+fwhm = 50  # Full width at half maximum in microns
+sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))  # Standard deviation
+
+# Initialize Pygame and Pymunk
+pygame.init()
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+clock = pygame.time.Clock()
+space = pymunk.Space()
+draw_options = pymunk.pygame_util.DrawOptions(screen)
+
+# Add walls
+walls = [
+    pymunk.Segment(space.static_body, (0, 0), (0, HEIGHT), 1),
+    pymunk.Segment(space.static_body, (0, HEIGHT), (WIDTH, HEIGHT), 1),
+    pymunk.Segment(space.static_body, (WIDTH, HEIGHT), (WIDTH, 0), 1),
+    pymunk.Segment(space.static_body, (WIDTH, 0), (0, 0), 1)
+]
+for wall in walls:
+    wall.elasticity = 1
+    space.add(wall)
+
+# Function to add a particle
+def add_particle(x, y, radius):
+    body = pymunk.Body(1, pymunk.moment_for_circle(1, 0, radius))
+    body.position = x, y
+    shape = pymunk.Circle(body, radius)
+    shape.elasticity = 1
+    space.add(body, shape)
+
+# Function to determine if there's significant movement in space
+def is_still(space):
+    for body in space.bodies:
+        if body.velocity.length > 0.5:  # Threshold for movement
+            return False
+    return True
+
+# Main loop
+running = True
+particles_added = 0
+max_particles = 500  # Maximum number of particles to add
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    # Gradually decrease the peak diameter to fill smaller spaces
+    if particles_added % 50 == 0 and peak_diameter > 30:  # Adjust as needed
+        peak_diameter *= 0.9
+
+    # Add a new particle
+    if particles_added < max_particles:
+        diameter = np.random.normal(peak_diameter, sigma)
+        radius = diameter / 2
+        x = uniform(radius, WIDTH - radius)
+        y = uniform(radius, HEIGHT - radius)
+        add_particle(x, y, radius)
+        particles_added += 1
+
+    # Check if the particles have settled
+    if particles_added >= max_particles and is_still(space):
+        break
+
+    screen.fill((255, 255, 255))  # Fill screen with white
+    space.step(1/50.0)  # Step the simulation
+    space.debug_draw(draw_options)  # Draw the space
+    pygame.display.flip()  # Update the screen
+    clock.tick(50)  # Limit the frame rate
+
+pygame.quit()
